@@ -1,0 +1,45 @@
+- hosts: xen_nodes
+  sudo: True
+  tasks:
+    - name: Update apt repositories
+      action: apt update_cache=True
+
+    - name: Install dependencies
+      action: apt pkg={{ item }} state=present
+      with_items:
+        - build-essential
+        - texinfo
+        - libpixman-1-dev
+        - git
+
+    - name: Build dependencies for Xen
+      action: command apt-get -y build-dep xen
+
+    - git: repo=https://github.com/mdlugajczyk/xen.git dest=/home/ubuntu/xen-src version=round-robin
+
+    - name: Configure
+      shell: cd /home/ubuntu/xen-src && ./configure --libdir=/usr/lib
+
+    - name: Make
+      command: chdir=/home/ubuntu/xen-src make dist
+
+    - name: Make install
+      command: chdir=/home/ubuntu/xen-src make install
+
+    - name: Update rc scripts xencommons
+      command: update-rc.d xencommons defaults 19 18
+
+    - name: Update rc scripts xendomains
+      command: update-rc.d xendomains defaults 21 20
+
+    - name: Update rc scripts xen-watchdog
+      command: update-rc.d xen-watchdog defaults 22 23
+
+    - name: Setup Xen bridge
+      shell: sudo echo "auto xenbr0 iface xenbr0 inet dhcp bridge_ports eth0" >> /etc/network/interfaces
+
+    - name: Select xen as first boot option in Grub
+      shell: dpkg-divert --divert /etc/grub.d/08_linux_xen --rename /etc/grub.d/20_linux_xen
+
+    - name: Update grub
+      command: update-grub
